@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.pytest_cache/
+.venv/
+venv/
+
+# Environment
+.env
+
+# SQLite
+*.db
+*.sqlite3
+
+# Keys / secrets
+**/keys/*private*
+*rsa_private*
+*.pem.private
+
+# macOS
+.DS_Store
+
+# IDE
+.vscode/
+.idea/
