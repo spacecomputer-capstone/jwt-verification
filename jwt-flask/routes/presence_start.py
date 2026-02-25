@@ -1,16 +1,10 @@
-from flask import Blueprint, request, jsonify
-from services.jwt_service import issue_presence_token
+from flask import Blueprint, jsonify
 
 bp = Blueprint("presence_start", __name__)
 
 
 @bp.route("/presence/start", methods=["POST"])
 def start_presence():
-    data = request.json
-
-    user_id = data["user_id"]
-    pi_id = data["pi_id"]
-
-    token = issue_presence_token(user_id, pi_id)
-
-    return jsonify({"presence_jwt": token})
+    return jsonify({
+        "error": "Deprecated. Use POST /presence/exchange via Pi challenge flow."
+    }), 410

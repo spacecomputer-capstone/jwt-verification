@@ -1,20 +1,12 @@
-import jwt
-import time
+import json
 import os
-import hashlib
 import secrets
 import requests
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
 from config import BACKEND_URL, PI_ID
-import asyncio
-from ble_listener import JWTServer
 
-# Load keys
 BASE_DIR = os.path.dirname(__file__)
-
-with open(f"{BASE_DIR}/keys/backend_public.pem", "rb") as f:
-    BACKEND_PUBLIC_KEY = f.read()
 
 with open(f"{BASE_DIR}/keys/pi_private.pem", "rb") as f:
     PI_PRIVATE_KEY = serialization.load_pem_private_key(
@@ -22,82 +14,64 @@ with open(f"{BASE_DIR}/keys/pi_private.pem", "rb") as f:
         password=None
     )
 
-# Verify backend JWT
-def verify_presence_jwt(token):
-    return jwt.decode(
-        token,
-        BACKEND_PUBLIC_KEY,
-        algorithms=["RS256"]
-    )
 
-# Rapid challenge rounds
-def run_challenge_rounds(m=20):
-    """
-    Simulated rounds.
-    Replace with BLE logic later.
-    """
-    transcript = []
-    success = 0
-
-    for i in range(m):
-        ci = secrets.token_bytes(16)   # cTRNG-like
-        start = time.monotonic()
-
-        # simulate phone response
-        ri = hashlib.sha256(ci).digest()
-
-        dt = time.monotonic() - start
-
-        transcript.append((ci.hex(), ri.hex(), dt))
-
-        if dt < 0.05:  # 50ms threshold
-            success += 1
-
-    return transcript, success
-
-# Sign attestation
-def sign_attestation(message: bytes):
+def sign_with_pi(message: bytes) -> bytes:
     return PI_PRIVATE_KEY.sign(
         message,
         padding.PKCS1v15(),
         hashes.SHA256()
     )
 
-# Main flow
-def handle_presence_token(presence_jwt):
-    # 1. verify JWT
-    claims = verify_presence_jwt(presence_jwt)
 
-    if claims["pid"] != PI_ID:
-        print("Wrong Pi ID")
-        return
+def issue_signed_challenge():
+    challenge = secrets.token_hex(16)
+    pi_signature = sign_with_pi(challenge.encode())
+    return challenge, pi_signature
 
-    print("JWT valid. Running challenge rounds...")
 
-    # 2. rounds
-    transcript, success = run_challenge_rounds()
-
-    transcript_str = str(transcript)
-    transcript_hash = hashlib.sha256(transcript_str.encode()).hexdigest()
-
-    # 3. sign
-    signature = sign_attestation(transcript_str.encode())
-
-    # 4. send to backend
+def request_jwt_from_backend(user_id: str, challenge: str, pi_sig: bytes, user_sig_hex: str):
     payload = {
-        "presence_jwt": presence_jwt,
-        "attestation": transcript_str,
-        "signature": signature.hex()
+        "user_id": user_id,
+        "pi_id": PI_ID,
+        "challenge": challenge,
+        "pi_signature": pi_sig.hex(),
+        "user_signature": user_sig_hex,
     }
 
-    r = requests.post(f"{BACKEND_URL}/presence/verify", json=payload)
+    response = requests.post(
+        f"{BACKEND_URL}/presence/exchange",
+        json=payload,
+        timeout=10
+    )
+    response.raise_for_status()
+    return response.json()["presence_jwt"]
 
-    print("Backend response:", r.json())
 
-def on_token_received(token):
-    handle_presence_token(token)
+def run_access_flow(user_id="user1"):
+    print(f'User -> Pi: "I want access to resources" (user={user_id})')
 
-# Simulated BLE entrypoint
+    challenge, pi_sig = issue_signed_challenge()
+    print('Pi -> User: "Challenge cTRNG with Pi signature"')
+
+    challenge_packet = {
+        "user_id": user_id,
+        "challenge": challenge,
+        "pi_signature": pi_sig.hex()
+    }
+    print("\nSend this packet to user client:")
+    print(json.dumps(challenge_packet, indent=2))
+
+    user_sig_hex = input("\nPaste `user_signature` from user client: ").strip()
+    print('User -> Pi: "Signed cTRNG"')
+
+    print('Pi -> Backend: "Forward signed challenge info"')
+    jwt_token = request_jwt_from_backend(user_id, challenge, pi_sig, user_sig_hex)
+
+    print('Backend -> Pi: "Forward JWT"')
+    print('Pi -> User: "Forward JWT"')
+    print("\nJWT:")
+    print(jwt_token)
+
+
 if __name__ == "__main__":
-    server = JWTServer(on_token_received)
-    asyncio.run(server.start())
+    run_access_flow("user1")
