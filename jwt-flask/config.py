@@ -27,4 +27,9 @@ BACKEND_PUBLIC_KEY = _env_or_file(
     f"{BASE_DIR}/keys/backend_public.pem"
 )
 
-SQLALCHEMY_DATABASE_URI = "sqlite:///app.db"
+database_url = os.getenv("DATABASE_URL", "").strip()
+# Render may provide `postgres://...`; SQLAlchemy expects `postgresql://...`.
+if database_url.startswith("postgres://"):
+    database_url = "postgresql://" + database_url[len("postgres://"):]
+
+SQLALCHEMY_DATABASE_URI = database_url or "sqlite:///app.db"
