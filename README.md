@@ -1,31 +1,23 @@
-# JWT Presence Flow (Mentor Sequence)
+# JWT Verification (Mentor-Aligned Presence Flow)
 
-This repo now follows this exact challenge-signature-JWT sequence:
+This repo implements the mentor flow for proof-of-presence with a Pi challenge and backend JWT issuance.
 
-1. User -> Pi: asks for access.
-2. Pi -> User: sends fresh `cTRNG` challenge with Pi signature.
-3. User -> Pi: sends signature over `cTRNG`.
-4. Pi -> Backend: forwards `{user_id, pi_id, challenge, pi_signature, user_signature}`.
-5. Backend: verifies both signatures, mints JWT, stores session in DB.
-6. Backend -> Pi -> User: JWT is returned and forwarded.
+## Sequence (Implemented)
 
-## Key Setup (once)
+1. User/App -> Pi bridge: request access/challenge.
+2. Pi bridge -> User/App: return fresh challenge (`cTRNG`) + Pi signature.
+3. User/App: sign challenge locally with user key.
+4. User/App -> Backend: send `{user_id, pi_id, challenge, pi_signature, user_signature}`.
+5. Backend: verify Pi signature + user signature, issue/store JWT session.
+6. Backend -> User/App: return JWT; app proceeds with verified flow.
 
-Backend keys:
-- `jwt-flask/keys/backend_private.pem`
-- `jwt-flask/keys/backend_public.pem`
+## Repo Structure
 
-Pi keys:
-- `rpi/keys/pi_private.pem`
-- `rpi/keys/pi_public.pem`
-- Copy Pi public key to backend: `jwt-flask/keys/pi_keys/pi1_pub.pem`
+- `jwt-flask/`: Flask backend (JWT issue/verify, admin dashboard, Pi presence registry)
+- `rpi/`: Pi bridge + heartbeat + key registration + Orbitport cTRNG integration
+- `user/`: legacy/testing client artifacts
 
-User keys:
-- `user/keys/user1_private.pem` (private key stays on user client)
-- `user/keys/pi_public.pem` (for verifying Pi's challenge signature)
-- Copy user public key to backend: `jwt-flask/keys/user_keys/user1_pub.pem`
-
-## Run Backend
+## Backend Setup (Local)
 
 ```bash
 cd jwt-flask
@@ -33,125 +25,149 @@ pip install -r requirements.txt
 python3 app.py
 ```
 
-## App Integration Mode (automatic, no copy/paste)
+### Required Backend Env Vars (Already set in Render)
 
-Set backend env vars:
+- `REQUIRE_USER_SIGNATURE=true`
+- `USER1_ED25519_PUBLIC_KEY_HEX=<hex public key used by app's user signer>`
 
-```bash
-REQUIRE_USER_SIGNATURE=true
-USER1_ED25519_PUBLIC_KEY_HEX=c5b632629faa0428e85a1647b4ce25044defbf0c7681f1b4861764a2b14564ad
-# optional admin protection:
-# ADMIN_TOKEN=your_secret_token
-# optional Pi registration protection:
-# PI_REGISTRATION_TOKEN=your_pi_registration_token
-```
+### Common Optional Backend Env Vars (Already set in Render)
 
-Then run:
+- `DATABASE_URL=<postgres url>` (recommended on Render)
+- `ADMIN_TOKEN=<token>` (protect `/admin` and `/admin/pis`)
+- `PI_REGISTRATION_TOKEN=<token>` (protect Pi key registration endpoint)
+- `JWT_EXP_SECONDS=<seconds>`
 
-```bash
-# terminal 1 (backend)
-cd jwt-flask
-pip install -r requirements.txt
-python3 app.py
-```
+## Render Deployment Notes (Backend)
 
-```bash
-# terminal 2 (rpi bridge)
-cd rpi
-pip install -r requirements.txt
-python3 pi_client.py
-```
+If deploying only `jwt-flask` as service root:
 
-Flow in app:
-1. User taps challenge/connect in game.
-2. App asks backend for Pi bridge URL: `GET /presence/pi/resolve?pi_id=...`.
-3. App requests challenge from Pi bridge (`/challenge`).
-3. App signs challenge locally as `user1` (Ed25519).
-4. App calls backend `POST /presence/exchange`.
-5. Backend verifies Pi signature + user signature, then mints/stores JWT.
+- Build command: `pip install -r requirements.txt`
+- Start command: `gunicorn --bind 0.0.0.0:$PORT "app:create_app()"`
 
-## Admin Dashboard
+Ensure env vars above are set in Render.
 
-- `GET /admin` (HTML table)
-- `GET /admin/pis` (JSON)
-
-Each Pi sends heartbeat to:
-- `POST /presence/pi/heartbeat`
-
-Pi public key auto-registration:
-- `POST /presence/pi/register`
-
-Bridge URL resolve used by app:
-- `GET /presence/pi/resolve?pi_id=...`
-
-Dashboard shows:
-- Pi ID
-- Online/offline (heartbeat within last 30s)
-- Bridge URL
-- Last challenge time
-- Last JWT exchange time
-- Last error
-
-If `ADMIN_TOKEN` is set, pass:
-- query param `?token=<ADMIN_TOKEN>`
-- or header `X-Admin-Token: <ADMIN_TOKEN>`
-
-## Teammate Setup (new Pi)
-
-On teammate Pi:
+## Pi Setup (New Pi / Teammate)
 
 ```bash
-git clone <repo>
+git clone https://github.com/spacecomputer-capstone/jwt-verification.git
 cd jwt-verification/rpi
 pip install -r requirements.txt
+```
+
+Install Node + dependencies for Orbitport cTRNG helper:
+
+```bash
+sudo apt update
+sudo apt install -y nodejs npm
 npm install
+```
+
+Generate Pi keypair (one-time):
+
+```bash
 mkdir -p keys
 openssl genrsa -out keys/pi_private.pem 2048
 openssl rsa -in keys/pi_private.pem -pubout -out keys/pi_public.pem
 ```
 
-Run:
+Set Orbitport credentials in same shell (or profile):
 
 ```bash
-# Orbitport credentials (set in shell profile for persistence)
 export OP_CLIENT_ID="..."
 export OP_CLIENT_SECRET="..."
+```
 
+Run Pi service:
+
+```bash
 python3 pi_client.py
 ```
 
-Wait 2-3 seconds for the first heartbeat to register, then open `/admin` to confirm ONLINE.
+What this does automatically:
 
-`pi_client.py` auto-generates and persists a stable `pi_id` in `rpi/.pi_id` on first run, and auto-registers the Pi public key with backend.
-No manual `pi_id` editing is required.
+- auto-generates/persists a stable Pi ID in `rpi/.pi_id` (if not set)
+- starts local Pi bridge (`/health`, `/challenge`)
+- heartbeats to backend (`/presence/pi/heartbeat`)
+- registers Pi public key to backend (`/presence/pi/register`)
 
-`/challenge` now sources cTRNG via Orbitport SDK (TypeScript package path), not Python RNG.
-If Orbitport cTRNG fails, Pi falls back to local secure randomness by default (`ALLOW_CTRNG_FALLBACK=True` in `rpi/config.py`).
+If backend uses registration auth, set matching token in Pi env/config:
 
-If backend sets `PI_REGISTRATION_TOKEN`, set same token in `rpi/config.py` (`PI_REGISTRATION_TOKEN`).
+- `PI_REGISTRATION_TOKEN=<same token as backend>`
 
-## Backend Endpoint
+## cTRNG Behavior and Latency Stability
 
-- `POST /presence/exchange`
+`/challenge` uses Orbitport cTRNG via Node helper (`rpi/scripts/get_ctrng.mjs`).
 
-Request body:
+To keep challenge timing consistent, the Pi bridge now:
 
-```json
-{
-  "user_id": "user1",
-  "pi_id": "pi1",
-  "challenge": "<hex challenge>",
-  "pi_signature": "<hex signature by Pi private key>",
-  "user_signature": "<hex signature by User private key>"
-}
+- pre-fills a cache of signed challenges in a background thread
+- serves `/challenge` from cache first (fast path)
+- falls back to local secure randomness if Orbitport is slow/unavailable (default enabled)
+
+Useful runtime knobs:
+
+- `CTRNG_TIMEOUT_SECONDS` (default `1.2`)
+- `CHALLENGE_CACHE_SIZE` (default `4`)
+- `CHALLENGE_MAX_AGE_SECONDS` (default `20`)
+
+Example:
+
+```bash
+export CTRNG_TIMEOUT_SECONDS=1.2
+export CHALLENGE_CACHE_SIZE=4
+python3 pi_client.py
 ```
 
-Response:
+## Admin / Presence Endpoints
 
-```json
-{
-  "presence_jwt": "<jwt>",
-  "sid": "<session-id>",
-  "reused": false
-}
-```
+- `GET /admin` -> HTML dashboard
+- `GET /admin/pis` -> JSON Pi status
+- `POST /presence/pi/heartbeat` -> Pi heartbeat
+- `POST /presence/pi/register` -> Pi public key registration
+- `GET /presence/pi/resolve` -> resolve active Pi bridge URL
+- `POST /presence/exchange` -> verify signatures and mint JWT
+
+If `ADMIN_TOKEN` is set:
+
+- use query: `?token=<ADMIN_TOKEN>`
+- or header: `X-Admin-Token: <ADMIN_TOKEN>`
+
+## App Integration Summary
+
+The mobile app's mascot challenge flow is JWT-primary:
+
+1. Resolve Pi bridge URL via backend.
+2. Fetch signed challenge from Pi bridge.
+3. Sign challenge in-app.
+4. Exchange with backend for JWT.
+5. Continue catch flow on success.
+
+Legacy path remains as fallback if enabled in app.
+
+## Troubleshooting
+
+- Pi not showing in `/admin`:
+  - confirm `pi_client.py` is running
+  - confirm `BACKEND_URL` points to deployed backend
+- `Invalid Pi signature`:
+  - ensure Pi private/public keys match
+  - restart `pi_client.py` so latest key is re-registered
+- `JWT exchange failed (401)` user signature errors:
+  - set correct `USER1_ED25519_PUBLIC_KEY_HEX` in backend env
+- `No Pi bridge reachable` in app:
+  - ensure phone can reach Pi network address
+  - check `/presence/pi/resolve` and Pi `/health`
+- cTRNG instability:
+  - verify `OP_CLIENT_ID` / `OP_CLIENT_SECRET`
+  - test with `node scripts/get_ctrng.mjs`
+  - keep fallback enabled for resilience
+
+## Aligns with the sequence in the following:
+![Mentor JWT sequence diagram](jwt-flow.png)
+
+Implementation note:
+This implementation uses app-forwarding for the signed payload step (`App -> Backend`) rather than Pi-forwarding (`Pi -> Backend`).
+The cryptographic trust model remains aligned with the mentor sequence because backend verification still requires both:
+- Pi signature over the challenge
+- User signature over the same challenge
+This preserves the same verification guarantees while removing one network hop, which reduces end-to-end latency and makes proof-of-presence connection feel faster and more consistent in mobile gameplay (avoid timeouts).
