@@ -3,6 +3,7 @@ from services.jwt_service import issue_presence_token
 from services.attestation import verify_pi_signature
 from services.user_identity import verify_user_signature
 from services.db_service import store_session
+from config import REQUIRE_USER_SIGNATURE
 
 bp = Blueprint("presence_exchange", __name__)
 
@@ -16,9 +17,13 @@ def _required(data, keys):
 def presence_exchange():
     data = request.get_json(silent=True) or {}
 
+    required_fields = ["user_id", "pi_id", "challenge", "pi_signature"]
+    if REQUIRE_USER_SIGNATURE:
+        required_fields.append("user_signature")
+
     err = _required(
         data,
-        ["user_id", "pi_id", "challenge", "pi_signature", "user_signature"]
+        required_fields
     )
     if err:
         return jsonify({"error": err}), 400
@@ -29,7 +34,8 @@ def presence_exchange():
 
     try:
         pi_sig = bytes.fromhex(data["pi_signature"])
-        user_sig = bytes.fromhex(data["user_signature"])
+        user_sig_hex = data.get("user_signature", "")
+        user_sig = bytes.fromhex(user_sig_hex) if user_sig_hex else None
     except ValueError:
         return jsonify({"error": "Signatures must be hex-encoded bytes"}), 400
 
@@ -37,7 +43,10 @@ def presence_exchange():
 
     try:
         verify_pi_signature(pi_id, challenge_bytes, pi_sig)
-        verify_user_signature(user_id, challenge_bytes, user_sig)
+        if REQUIRE_USER_SIGNATURE:
+            if not user_sig:
+                return jsonify({"error": "Missing user signature"}), 400
+            verify_user_signature(user_id, challenge_bytes, user_sig)
     except Exception as e:
         return jsonify({"error": str(e)}), 401
 

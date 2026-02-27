@@ -1,4 +1,4 @@
-BACKEND_URL = "http://YOUR_SERVER_URL:5000"
+BACKEND_URL = "https://jwt-verification-sk0m.onrender.com"
 
 PI_ID = "pi1"
 

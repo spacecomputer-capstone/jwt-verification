@@ -33,7 +33,41 @@ pip install -r requirements.txt
 python3 app.py
 ```
 
-## Run User + Pi Flow
+## App Integration Mode (phone + Pi)
+
+Set this env var on backend to allow Pi-only proof (no separate `user_client`):
+
+```bash
+REQUIRE_USER_SIGNATURE=false
+```
+
+Then run:
+
+```bash
+# terminal 1 (backend)
+cd jwt-flask
+pip install -r requirements.txt
+python3 app.py
+```
+
+```bash
+# terminal 2 (rpi)
+cd rpi
+pip install -r requirements.txt
+python3 pi_client.py
+```
+
+Pi prints a JSON packet with:
+- `pi_id`
+- `challenge`
+- `pi_signature`
+
+In your app JWT dialog:
+1. Paste `pi_id`, `challenge`, `pi_signature` from Pi output.
+2. Leave `user_signature` empty (only in Pi-only demo mode).
+3. Submit; app calls `POST /presence/exchange` and receives JWT.
+
+## Strict Mentor Mode (user + Pi signatures)
 
 ```bash
 # terminal 1 (user)
@@ -54,7 +88,7 @@ Flow:
 2. Paste that JSON into `user_client.py`.
 3. User client verifies Pi signature and prints `user_signature=<hex>`.
 4. Paste the hex back into Pi client.
-5. Pi forwards to backend and prints the returned JWT.
+5. Use that `user_signature` when calling backend.
 
 ## Backend Endpoint
 
@@ -68,7 +102,7 @@ Request body:
   "pi_id": "pi1",
   "challenge": "<hex challenge>",
   "pi_signature": "<hex signature by Pi private key>",
-  "user_signature": "<hex signature by User private key>"
+  "user_signature": "<hex signature by User private key (optional when REQUIRE_USER_SIGNATURE=false)>"
 }
 ```
 

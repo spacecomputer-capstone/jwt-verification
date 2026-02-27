@@ -1,10 +1,9 @@
 import json
 import os
 import secrets
-import requests
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
-from config import BACKEND_URL, PI_ID
+from config import PI_ID
 
 BASE_DIR = os.path.dirname(__file__)
 
@@ -23,55 +22,28 @@ def sign_with_pi(message: bytes) -> bytes:
     )
 
 
-def issue_signed_challenge():
+def issue_signed_challenge_packet(user_id="user1"):
     challenge = secrets.token_hex(16)
-    pi_signature = sign_with_pi(challenge.encode())
-    return challenge, pi_signature
-
-
-def request_jwt_from_backend(user_id: str, challenge: str, pi_sig: bytes, user_sig_hex: str):
-    payload = {
+    pi_signature = sign_with_pi(challenge.encode()).hex()
+    return {
         "user_id": user_id,
         "pi_id": PI_ID,
         "challenge": challenge,
-        "pi_signature": pi_sig.hex(),
-        "user_signature": user_sig_hex,
+        "pi_signature": pi_signature,
     }
 
-    response = requests.post(
-        f"{BACKEND_URL}/presence/exchange",
-        json=payload,
-        timeout=10
-    )
-    response.raise_for_status()
-    return response.json()["presence_jwt"]
 
-
-def run_access_flow(user_id="user1"):
+def run_packet_emitter(user_id="user1"):
     print(f'User -> Pi: "I want access to resources" (user={user_id})')
+    print('Pi -> User/App: "Challenge cTRNG with Pi signature"')
 
-    challenge, pi_sig = issue_signed_challenge()
-    print('Pi -> User: "Challenge cTRNG with Pi signature"')
+    packet = issue_signed_challenge_packet(user_id)
 
-    challenge_packet = {
-        "user_id": user_id,
-        "challenge": challenge,
-        "pi_signature": pi_sig.hex()
-    }
-    print("\nSend this packet to user client:")
-    print(json.dumps(challenge_packet, indent=2))
+    print("\nPaste these values into app JWT dialog:")
+    print(json.dumps(packet, indent=2))
 
-    user_sig_hex = input("\nPaste `user_signature` from user client: ").strip()
-    print('User -> Pi: "Signed cTRNG"')
-
-    print('Pi -> Backend: "Forward signed challenge info"')
-    jwt_token = request_jwt_from_backend(user_id, challenge, pi_sig, user_sig_hex)
-
-    print('Backend -> Pi: "Forward JWT"')
-    print('Pi -> User: "Forward JWT"')
-    print("\nJWT:")
-    print(jwt_token)
+    print("\nFor demo mode (REQUIRE_USER_SIGNATURE=false), set user_signature to empty string.")
 
 
 if __name__ == "__main__":
-    run_access_flow("user1")
+    run_packet_emitter("user1")
