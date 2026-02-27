@@ -5,7 +5,7 @@
 - Open https://jwt-verification-sk0m.onrender.com/admin
 - You should see the Pi dashboard page.
 
-2. On Raspberry Pi (SSH in), clone and start setup:
+2. Clone repo on Pi and cd to rpi folder.
 
 git clone https://github.com/spacecomputer-capstone/jwt-verification.git
 cd jwt-verification/rpi
@@ -16,7 +16,7 @@ pip install -r requirements.txt
 openssl genrsa -out keys/pi_private.pem 2048
 openssl rsa -in keys/pi_private.pem -pubout -out keys/pi_public.pem
 
-4. Configure Orbitport creds on Pi (required for cTRNG):
+4. Configure Orbitport creds at base of rpi folder (required for cTRNG):
 
 export OP_CLIENT_ID="..."
 export OP_CLIENT_SECRET="..."
@@ -43,7 +43,7 @@ Keep it running.
 
 ———
 
-### What Happens Internally (Mentor Sequence Mapping)
+### What Happens Internally (Mentor Given Sequence Mapping)
 
 1. User -> Pi: user taps Challenge in app (request access).
 2. Pi -> User: app gets signed challenge (cTRNG + Pi signature) from Pi bridge.
