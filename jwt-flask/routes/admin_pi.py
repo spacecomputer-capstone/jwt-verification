@@ -42,6 +42,9 @@ def pi_heartbeat():
         status_text=data.get("status", "online"),
         error_text=data.get("error"),
     )
+    public_key_pem = data.get("public_key_pem", "").strip()
+    if public_key_pem:
+        upsert_pi_key(pi_id, public_key_pem)
     return jsonify({"ok": True})
 
 
@@ -71,8 +74,17 @@ def pi_resolve():
     row = None
     if pi_id:
         row = PiStatus.query.filter_by(pi_id=pi_id).first()
+        if row:
+            is_online = bool(row.last_seen and row.last_seen >= online_cutoff)
+            if not is_online:
+                row = None
     else:
-        row = PiStatus.query.order_by(PiStatus.last_seen.desc()).first()
+        row = (
+            PiStatus.query
+            .filter(PiStatus.last_seen >= online_cutoff)
+            .order_by(PiStatus.last_seen.desc())
+            .first()
+        )
 
     if not row or not row.bridge_url:
         return jsonify({"error": "No bridge URL registered"}), 404

@@ -34,10 +34,17 @@ def _lan_ip() -> str:
 
 
 def _heartbeat_loop(stop_evt: threading.Event):
+    pub_path = os.path.join(BASE_DIR, "keys", "pi_public.pem")
+    public_key_pem = ""
+    if os.path.exists(pub_path):
+        with open(pub_path, "r", encoding="utf-8") as f:
+            public_key_pem = f.read()
+
     payload = {
         "pi_id": PI_ID,
         "bridge_url": _bridge_url(),
         "status": "online",
+        "public_key_pem": public_key_pem,
     }
     try:
         requests.post(
