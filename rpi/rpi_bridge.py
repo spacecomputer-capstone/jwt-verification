@@ -12,6 +12,7 @@ PI_ID = get_pi_id()
 
 BASE_DIR = os.path.dirname(__file__)
 CTRNG_SCRIPT = os.path.join(BASE_DIR, "scripts", "get_ctrng.mjs")
+CTRNG_TIMEOUT_SECONDS = float(os.getenv("CTRNG_TIMEOUT_SECONDS", "3"))
 
 with open(f"{BASE_DIR}/keys/pi_private.pem", "rb") as f:
     PI_PRIVATE_KEY = serialization.load_pem_private_key(
@@ -35,7 +36,7 @@ def _ctrng_hex() -> str:
         cwd=BASE_DIR,
         capture_output=True,
         text=True,
-        timeout=10,
+        timeout=CTRNG_TIMEOUT_SECONDS,
         check=False,
     )
     if proc.returncode != 0:
@@ -61,13 +62,10 @@ def health():
 @app.get("/challenge")
 def challenge():
     user_id = request.args.get("user_id", "user1")
-    requested_pi_id = request.args.get("pi_id", PI_ID)
-    if requested_pi_id != PI_ID:
-        return jsonify({
-            "ok": False,
-            "error": f"Pi ID mismatch: requested={requested_pi_id}, actual={PI_ID}"
-        }), 400
+    requested_pi_id = request.args.get("pi_id", "").strip()
 
+    # Accept mismatched or empty requested pi_id to keep app flow robust across
+    # different mascot mappings; always return this bridge's canonical PI_ID.
     c_trng = _ctrng_hex()
     pi_sig = _sign_with_pi(c_trng.encode()).hex()
 
@@ -75,6 +73,7 @@ def challenge():
         "ok": True,
         "user_id": user_id,
         "pi_id": PI_ID,
+        "requested_pi_id": requested_pi_id or None,
         "challenge": c_trng,
         "pi_signature": pi_sig,
     })
