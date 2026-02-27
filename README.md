@@ -33,12 +33,13 @@ pip install -r requirements.txt
 python3 app.py
 ```
 
-## App Integration Mode (phone + Pi)
+## App Integration Mode (automatic, no copy/paste)
 
-Set this env var on backend to allow Pi-only proof (no separate `user_client`):
+Set backend env vars:
 
 ```bash
-REQUIRE_USER_SIGNATURE=false
+REQUIRE_USER_SIGNATURE=true
+USER1_ED25519_PUBLIC_KEY_HEX=c5b632629faa0428e85a1647b4ce25044defbf0c7681f1b4861764a2b14564ad
 ```
 
 Then run:
@@ -51,21 +52,18 @@ python3 app.py
 ```
 
 ```bash
-# terminal 2 (rpi)
+# terminal 2 (rpi bridge)
 cd rpi
 pip install -r requirements.txt
-python3 pi_client.py
+python3 rpi_bridge.py
 ```
 
-Pi prints a JSON packet with:
-- `pi_id`
-- `challenge`
-- `pi_signature`
-
-In your app JWT dialog:
-1. Paste `pi_id`, `challenge`, `pi_signature` from Pi output.
-2. Leave `user_signature` empty (only in Pi-only demo mode).
-3. Submit; app calls `POST /presence/exchange` and receives JWT.
+Flow in app:
+1. User taps challenge/connect in game.
+2. App calls Pi `GET /challenge` and receives `{pi_id, challenge, pi_signature}`.
+3. App signs challenge locally as `user1` (Ed25519).
+4. App calls backend `POST /presence/exchange`.
+5. Backend verifies Pi signature + user signature, then mints/stores JWT.
 
 ## Strict Mentor Mode (user + Pi signatures)
 
@@ -102,7 +100,7 @@ Request body:
   "pi_id": "pi1",
   "challenge": "<hex challenge>",
   "pi_signature": "<hex signature by Pi private key>",
-  "user_signature": "<hex signature by User private key (optional when REQUIRE_USER_SIGNATURE=false)>"
+  "user_signature": "<hex signature by User private key>"
 }
 ```
 
