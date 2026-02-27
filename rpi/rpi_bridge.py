@@ -1,5 +1,5 @@
 import os
-import secrets
+import subprocess
 from flask import Flask, jsonify, request
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
@@ -10,6 +10,7 @@ app = Flask(__name__)
 PI_ID = get_pi_id()
 
 BASE_DIR = os.path.dirname(__file__)
+CTRNG_SCRIPT = os.path.join(BASE_DIR, "scripts", "get_ctrng.mjs")
 
 with open(f"{BASE_DIR}/keys/pi_private.pem", "rb") as f:
     PI_PRIVATE_KEY = serialization.load_pem_private_key(
@@ -24,6 +25,27 @@ def _sign_with_pi(message: bytes) -> bytes:
         padding.PKCS1v15(),
         hashes.SHA256()
     )
+
+
+def _ctrng_hex() -> str:
+    # Source challenge via Orbitport SDK (Node/TS path), not Python RNG.
+    proc = subprocess.run(
+        ["node", CTRNG_SCRIPT],
+        cwd=BASE_DIR,
+        capture_output=True,
+        text=True,
+        timeout=10,
+        check=False,
+    )
+    if proc.returncode != 0:
+        err = (proc.stderr or proc.stdout or "unknown error").strip()
+        raise Exception(f"Orbitport cTRNG failed: {err}")
+
+    value = proc.stdout.strip().lower()
+    if len(value) < 32:
+        raise Exception("Orbitport cTRNG returned insufficient bytes")
+    # Use 16-byte challenge hex expected by current protocol.
+    return value[:32]
 
 
 @app.get("/health")
@@ -41,7 +63,7 @@ def challenge():
             "error": f"Pi ID mismatch: requested={requested_pi_id}, actual={PI_ID}"
         }), 400
 
-    c_trng = secrets.token_hex(16)
+    c_trng = _ctrng_hex()
     pi_sig = _sign_with_pi(c_trng.encode()).hex()
 
     return jsonify({

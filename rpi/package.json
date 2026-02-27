@@ -1,0 +1,10 @@
+{
+  "name": "jwt-rpi-ctrng",
+  "private": true,
+  "type": "module",
+  "version": "1.0.0",
+  "description": "Orbitport SDK helper for cTRNG challenge generation",
+  "dependencies": {
+    "@spacecomputer-io/orbitport-sdk-ts": "^0.0.4"
+  }
+}

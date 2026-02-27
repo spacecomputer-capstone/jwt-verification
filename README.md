@@ -103,6 +103,8 @@ On teammate Pi:
 ```bash
 git clone <repo>
 cd jwt-verification/rpi
+pip install -r requirements.txt
+npm install
 mkdir -p keys
 openssl genrsa -out keys/pi_private.pem 2048
 openssl rsa -in keys/pi_private.pem -pubout -out keys/pi_public.pem
@@ -111,6 +113,10 @@ openssl rsa -in keys/pi_private.pem -pubout -out keys/pi_public.pem
 Run:
 
 ```bash
+# Orbitport credentials (set in shell profile for persistence)
+export OP_CLIENT_ID="..."
+export OP_CLIENT_SECRET="..."
+
 python3 pi_client.py
 ```
 
@@ -118,6 +124,8 @@ Wait 2-3 seconds for the first heartbeat to register, then open `/admin` to conf
 
 `pi_client.py` auto-generates and persists a stable `pi_id` in `rpi/.pi_id` on first run, and auto-registers the Pi public key with backend.
 No manual `pi_id` editing is required.
+
+`/challenge` now sources cTRNG via Orbitport SDK (TypeScript package path), not Python RNG.
 
 If backend sets `PI_REGISTRATION_TOKEN`, set same token in `rpi/config.py` (`PI_REGISTRATION_TOKEN`).
 
