@@ -31,14 +31,23 @@ def _sign_with_pi(message: bytes) -> bytes:
 
 def _ctrng_hex() -> str:
     # Source challenge via Orbitport SDK (Node/TS path), not Python RNG.
-    proc = subprocess.run(
-        ["node", CTRNG_SCRIPT],
-        cwd=BASE_DIR,
-        capture_output=True,
-        text=True,
-        timeout=CTRNG_TIMEOUT_SECONDS,
-        check=False,
-    )
+    try:
+        proc = subprocess.run(
+            ["node", CTRNG_SCRIPT],
+            cwd=BASE_DIR,
+            capture_output=True,
+            text=True,
+            timeout=CTRNG_TIMEOUT_SECONDS,
+            check=False,
+        )
+    except subprocess.TimeoutExpired as e:
+        if ALLOW_CTRNG_FALLBACK:
+            return secrets.token_hex(16)
+        raise Exception(f"Orbitport cTRNG timed out after {CTRNG_TIMEOUT_SECONDS}s") from e
+    except Exception as e:
+        if ALLOW_CTRNG_FALLBACK:
+            return secrets.token_hex(16)
+        raise Exception(f"Orbitport cTRNG invocation failed: {e}") from e
     if proc.returncode != 0:
         err = (proc.stderr or proc.stdout or "unknown error").strip()
         if ALLOW_CTRNG_FALLBACK:
