@@ -37,6 +37,28 @@ def pi_heartbeat():
     return jsonify({"ok": True})
 
 
+@bp.route("/presence/pi/resolve", methods=["GET"])
+def pi_resolve():
+    pi_id = request.args.get("pi_id", "").strip()
+    if not pi_id:
+        return jsonify({"error": "Missing pi_id"}), 400
+
+    row = PiStatus.query.filter_by(pi_id=pi_id).first()
+    if not row or not row.bridge_url:
+        return jsonify({"error": "No bridge URL registered for this pi_id"}), 404
+
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    online_cutoff = now - timedelta(seconds=30)
+    online = bool(row.last_seen and row.last_seen >= online_cutoff)
+
+    return jsonify({
+        "pi_id": pi_id,
+        "bridge_url": row.bridge_url,
+        "online": online,
+        "last_seen": row.last_seen.isoformat() if row.last_seen else None,
+    })
+
+
 @bp.route("/admin/pis", methods=["GET"])
 def admin_pis_json():
     auth = _require_admin()

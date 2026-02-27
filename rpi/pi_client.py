@@ -15,8 +15,18 @@ from config import (
 def _bridge_url():
     if RPI_BRIDGE_ADVERTISED_URL:
         return RPI_BRIDGE_ADVERTISED_URL.rstrip("/")
-    host = socket.gethostname()
-    return f"http://{host}.local:{RPI_BRIDGE_PORT}"
+    return f"http://{_lan_ip()}:{RPI_BRIDGE_PORT}"
+
+
+def _lan_ip() -> str:
+    s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+    try:
+        s.connect(("8.8.8.8", 80))
+        return s.getsockname()[0]
+    except Exception:
+        return "127.0.0.1"
+    finally:
+        s.close()
 
 
 def _heartbeat_loop(stop_evt: threading.Event):
@@ -25,6 +35,15 @@ def _heartbeat_loop(stop_evt: threading.Event):
         "bridge_url": _bridge_url(),
         "status": "online",
     }
+    try:
+        requests.post(
+            f"{BACKEND_URL}/presence/pi/heartbeat",
+            json=payload,
+            timeout=3,
+        )
+    except Exception:
+        pass
+
     while not stop_evt.wait(HEARTBEAT_INTERVAL_SECONDS):
         try:
             requests.post(

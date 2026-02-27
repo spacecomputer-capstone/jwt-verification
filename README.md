@@ -62,7 +62,8 @@ python3 pi_client.py
 
 Flow in app:
 1. User taps challenge/connect in game.
-2. App discovers local Pi bridge (`/challenge`) and requests challenge.
+2. App asks backend for Pi bridge URL: `GET /presence/pi/resolve?pi_id=...`.
+3. App requests challenge from Pi bridge (`/challenge`).
 3. App signs challenge locally as `user1` (Ed25519).
 4. App calls backend `POST /presence/exchange`.
 5. Backend verifies Pi signature + user signature, then mints/stores JWT.
@@ -74,6 +75,9 @@ Flow in app:
 
 Each Pi sends heartbeat to:
 - `POST /presence/pi/heartbeat`
+
+Bridge URL resolve used by app:
+- `GET /presence/pi/resolve?pi_id=...`
 
 Dashboard shows:
 - Pi ID
@@ -104,6 +108,8 @@ Set `PI_ID` in `rpi/config.py` (example `pi2`), then run:
 ```bash
 python3 pi_client.py
 ```
+
+Wait 2-3 seconds for the first heartbeat to register, then open `/admin` to confirm ONLINE.
 
 Copy `keys/pi_public.pem` to backend repo as:
 - `jwt-flask/keys/pi_keys/pi2_pub.pem` (must match `PI_ID`)
