@@ -1,4 +1,5 @@
 from flask import Blueprint, request, jsonify
+from cryptography.exceptions import InvalidSignature
 from services.jwt_service import issue_presence_token
 from services.attestation import verify_pi_signature
 from services.user_identity import verify_user_signature
@@ -60,12 +61,20 @@ def presence_exchange():
 
     try:
         verify_pi_signature(pi_id, challenge_bytes, pi_sig)
-        if REQUIRE_USER_SIGNATURE:
-            if not user_sig:
-                return jsonify({"error": "Missing user signature"}), 400
-            verify_user_signature(user_id, challenge_bytes, user_sig)
+    except InvalidSignature:
+        return jsonify({"error": "Invalid Pi signature"}), 401
     except Exception as e:
-        return jsonify({"error": str(e)}), 401
+        return jsonify({"error": f"Pi verify error: {e}"}), 401
+
+    if REQUIRE_USER_SIGNATURE:
+        if not user_sig:
+            return jsonify({"error": "Missing user signature"}), 400
+        try:
+            verify_user_signature(user_id, challenge_bytes, user_sig)
+        except InvalidSignature:
+            return jsonify({"error": "Invalid user signature"}), 401
+        except Exception as e:
+            return jsonify({"error": f"User verify error: {e}"}), 401
 
     token, sid = issue_presence_token(user_id, pi_id)
 
