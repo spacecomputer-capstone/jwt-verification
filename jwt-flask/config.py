@@ -7,6 +7,7 @@ JWT_EXP_SECONDS = int(os.getenv("JWT_EXP_SECONDS", 60))
 REQUIRE_USER_SIGNATURE = os.getenv("REQUIRE_USER_SIGNATURE", "true").lower() == "true"
 PI_BRIDGE_URL_TEMPLATE = os.getenv("PI_BRIDGE_URL_TEMPLATE", "")
 ADMIN_TOKEN = os.getenv("ADMIN_TOKEN", "")
+PI_REGISTRATION_TOKEN = os.getenv("PI_REGISTRATION_TOKEN", "")
 
 BASE_DIR = os.path.dirname(__file__)
 

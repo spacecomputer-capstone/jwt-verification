@@ -42,6 +42,8 @@ REQUIRE_USER_SIGNATURE=true
 USER1_ED25519_PUBLIC_KEY_HEX=c5b632629faa0428e85a1647b4ce25044defbf0c7681f1b4861764a2b14564ad
 # optional admin protection:
 # ADMIN_TOKEN=your_secret_token
+# optional Pi registration protection:
+# PI_REGISTRATION_TOKEN=your_pi_registration_token
 ```
 
 Then run:
@@ -76,6 +78,9 @@ Flow in app:
 Each Pi sends heartbeat to:
 - `POST /presence/pi/heartbeat`
 
+Pi public key auto-registration:
+- `POST /presence/pi/register`
+
 Bridge URL resolve used by app:
 - `GET /presence/pi/resolve?pi_id=...`
 
@@ -103,7 +108,7 @@ openssl genrsa -out keys/pi_private.pem 2048
 openssl rsa -in keys/pi_private.pem -pubout -out keys/pi_public.pem
 ```
 
-Set `PI_ID` in `rpi/config.py` (example `pi2`), then run:
+Run:
 
 ```bash
 python3 pi_client.py
@@ -111,10 +116,10 @@ python3 pi_client.py
 
 Wait 2-3 seconds for the first heartbeat to register, then open `/admin` to confirm ONLINE.
 
-Copy `keys/pi_public.pem` to backend repo as:
-- `jwt-flask/keys/pi_keys/pi2_pub.pem` (must match `PI_ID`)
+`pi_client.py` auto-generates and persists a stable `pi_id` in `rpi/.pi_id` on first run, and auto-registers the Pi public key with backend.
+No manual `pi_id` editing is required.
 
-Push backend update and redeploy Render once.
+If backend sets `PI_REGISTRATION_TOKEN`, set same token in `rpi/config.py` (`PI_REGISTRATION_TOKEN`).
 
 ## Backend Endpoint
 

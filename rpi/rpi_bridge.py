@@ -3,9 +3,11 @@ import secrets
 from flask import Flask, jsonify, request
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
-from config import PI_ID, RPI_BRIDGE_HOST, RPI_BRIDGE_PORT
+from config import RPI_BRIDGE_HOST, RPI_BRIDGE_PORT
+from pi_identity import get_pi_id
 
 app = Flask(__name__)
+PI_ID = get_pi_id()
 
 BASE_DIR = os.path.dirname(__file__)
 

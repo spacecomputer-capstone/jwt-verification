@@ -1,8 +1,9 @@
 from datetime import datetime, timedelta, timezone
 from flask import Blueprint, jsonify, request, Response
-from config import ADMIN_TOKEN
+from config import ADMIN_TOKEN, PI_REGISTRATION_TOKEN
 from models.pi_status import PiStatus
 from services.pi_status_service import upsert_heartbeat
+from services.pi_key_service import upsert_pi_key
 
 bp = Blueprint("admin_pi", __name__)
 
@@ -21,6 +22,13 @@ def _require_admin():
     return None
 
 
+def _registration_authorized() -> bool:
+    if not PI_REGISTRATION_TOKEN:
+        return True
+    header = request.headers.get("X-Pi-Registration-Token", "")
+    return header == PI_REGISTRATION_TOKEN
+
+
 @bp.route("/presence/pi/heartbeat", methods=["POST"])
 def pi_heartbeat():
     data = request.get_json(silent=True) or {}
@@ -37,22 +45,42 @@ def pi_heartbeat():
     return jsonify({"ok": True})
 
 
+@bp.route("/presence/pi/register", methods=["POST"])
+def pi_register():
+    if not _registration_authorized():
+        return jsonify({"error": "Unauthorized"}), 401
+
+    data = request.get_json(silent=True) or {}
+    pi_id = data.get("pi_id", "").strip()
+    public_key_pem = data.get("public_key_pem", "").strip()
+
+    if not pi_id or not public_key_pem:
+        return jsonify({"error": "Missing pi_id or public_key_pem"}), 400
+
+    upsert_pi_key(pi_id, public_key_pem)
+    return jsonify({"ok": True, "pi_id": pi_id})
+
+
 @bp.route("/presence/pi/resolve", methods=["GET"])
 def pi_resolve():
     pi_id = request.args.get("pi_id", "").strip()
-    if not pi_id:
-        return jsonify({"error": "Missing pi_id"}), 400
-
-    row = PiStatus.query.filter_by(pi_id=pi_id).first()
-    if not row or not row.bridge_url:
-        return jsonify({"error": "No bridge URL registered for this pi_id"}), 404
 
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     online_cutoff = now - timedelta(seconds=30)
+
+    row = None
+    if pi_id:
+        row = PiStatus.query.filter_by(pi_id=pi_id).first()
+    else:
+        row = PiStatus.query.order_by(PiStatus.last_seen.desc()).first()
+
+    if not row or not row.bridge_url:
+        return jsonify({"error": "No bridge URL registered"}), 404
+
     online = bool(row.last_seen and row.last_seen >= online_cutoff)
 
     return jsonify({
-        "pi_id": pi_id,
+        "pi_id": row.pi_id,
         "bridge_url": row.bridge_url,
         "online": online,
         "last_seen": row.last_seen.isoformat() if row.last_seen else None,
