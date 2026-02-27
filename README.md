@@ -40,6 +40,8 @@ Set backend env vars:
 ```bash
 REQUIRE_USER_SIGNATURE=true
 USER1_ED25519_PUBLIC_KEY_HEX=c5b632629faa0428e85a1647b4ce25044defbf0c7681f1b4861764a2b14564ad
+# optional admin protection:
+# ADMIN_TOKEN=your_secret_token
 ```
 
 Then run:
@@ -55,38 +57,58 @@ python3 app.py
 # terminal 2 (rpi bridge)
 cd rpi
 pip install -r requirements.txt
-python3 rpi_bridge.py
+python3 pi_client.py
 ```
 
 Flow in app:
 1. User taps challenge/connect in game.
-2. App calls Pi `GET /challenge` and receives `{pi_id, challenge, pi_signature}`.
+2. App discovers local Pi bridge (`/challenge`) and requests challenge.
 3. App signs challenge locally as `user1` (Ed25519).
 4. App calls backend `POST /presence/exchange`.
 5. Backend verifies Pi signature + user signature, then mints/stores JWT.
 
-## Strict Mentor Mode (user + Pi signatures)
+## Admin Dashboard
+
+- `GET /admin` (HTML table)
+- `GET /admin/pis` (JSON)
+
+Each Pi sends heartbeat to:
+- `POST /presence/pi/heartbeat`
+
+Dashboard shows:
+- Pi ID
+- Online/offline (heartbeat within last 30s)
+- Bridge URL
+- Last challenge time
+- Last JWT exchange time
+- Last error
+
+If `ADMIN_TOKEN` is set, pass:
+- query param `?token=<ADMIN_TOKEN>`
+- or header `X-Admin-Token: <ADMIN_TOKEN>`
+
+## Teammate Setup (new Pi)
+
+On teammate Pi:
 
 ```bash
-# terminal 1 (user)
-cd user
-pip install -r requirements.txt
-python3 user_client.py
+git clone <repo>
+cd jwt-verification/rpi
+mkdir -p keys
+openssl genrsa -out keys/pi_private.pem 2048
+openssl rsa -in keys/pi_private.pem -pubout -out keys/pi_public.pem
 ```
 
+Set `PI_ID` in `rpi/config.py` (example `pi2`), then run:
+
 ```bash
-# terminal 2 (rpi)
-cd rpi
-pip install -r requirements.txt
 python3 pi_client.py
 ```
 
-Flow:
-1. Pi prints a JSON challenge packet.
-2. Paste that JSON into `user_client.py`.
-3. User client verifies Pi signature and prints `user_signature=<hex>`.
-4. Paste the hex back into Pi client.
-5. Use that `user_signature` when calling backend.
+Copy `keys/pi_public.pem` to backend repo as:
+- `jwt-flask/keys/pi_keys/pi2_pub.pem` (must match `PI_ID`)
+
+Push backend update and redeploy Render once.
 
 ## Backend Endpoint
 

@@ -3,6 +3,8 @@ from services.jwt_service import issue_presence_token
 from services.attestation import verify_pi_signature
 from services.user_identity import verify_user_signature
 from services.db_service import store_session
+from services.rpi_bridge_service import fetch_signed_challenge
+from services.pi_status_service import mark_challenge, mark_exchange
 from config import REQUIRE_USER_SIGNATURE
 
 bp = Blueprint("presence_exchange", __name__)
@@ -12,6 +14,21 @@ def _required(data, keys):
     if missing:
         return f"Missing fields: {', '.join(missing)}"
     return None
+
+
+@bp.route("/presence/challenge", methods=["GET"])
+def presence_challenge():
+    user_id = request.args.get("user_id", "user1")
+    pi_id = request.args.get("pi_id", "")
+    if not pi_id:
+        return jsonify({"error": "Missing pi_id"}), 400
+
+    try:
+        packet = fetch_signed_challenge(pi_id, user_id)
+        mark_challenge(packet["pi_id"])
+        return jsonify(packet)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
 
 @bp.route("/presence/exchange", methods=["POST"])
 def presence_exchange():
@@ -54,6 +71,7 @@ def presence_exchange():
 
     try:
         store_session(user_id, pi_id, sid, challenge, token)
+        mark_exchange(pi_id)
     except Exception:
         # Prevent silent replay/session duplication issues on DB constraints
         return jsonify({"error": "Session replay or duplicate detected"}), 409

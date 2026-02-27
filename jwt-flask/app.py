@@ -2,7 +2,9 @@ from flask import Flask
 from models import db
 import models.proof  # noqa: F401
 import models.session  # noqa: F401
+import models.pi_status  # noqa: F401
 from routes.presence_exchange import bp as exchange_bp
+from routes.admin_pi import bp as admin_pi_bp
 from config import SQLALCHEMY_DATABASE_URI
 
 def create_app():
@@ -16,6 +18,7 @@ def create_app():
         db.create_all()
 
     app.register_blueprint(exchange_bp)
+    app.register_blueprint(admin_pi_bp)
 
     return app
 

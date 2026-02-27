@@ -10,6 +10,10 @@ PI_KEYS = {
 
 def verify_pi_signature(pi_id, message: bytes, signature: bytes):
     path = PI_KEYS.get(pi_id)
+    if not path:
+        candidate = f"{BASE_DIR}/keys/pi_keys/{pi_id}_pub.pem"
+        if os.path.exists(candidate):
+            path = candidate
 
     if not path:
         raise Exception("Unknown Pi")

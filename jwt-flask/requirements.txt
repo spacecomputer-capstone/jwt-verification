@@ -4,3 +4,4 @@ pyjwt
 cryptography
 python-dotenv
 gunicorn
+requests
