@@ -126,6 +126,9 @@ python3 pi_client.py
 - `POST /presence/pi/register` -> Pi public key registration
 - `GET /presence/pi/resolve` -> resolve active Pi bridge URL
 - `POST /presence/exchange` -> verify signatures and mint JWT
+- Live dashboard (example below): <https://jwt-verification-sk0m.onrender.com/admin>
+![Admin panel example](pi_admin_dashboard.png)
+
 
 If `ADMIN_TOKEN` is set:
 
