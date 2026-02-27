@@ -79,10 +79,13 @@ def presence_exchange():
     token, sid = issue_presence_token(user_id, pi_id)
 
     try:
-        store_session(user_id, pi_id, sid, challenge, token)
+        session, created = store_session(user_id, pi_id, sid, challenge, token)
         mark_exchange(pi_id)
     except Exception:
         # Prevent silent replay/session duplication issues on DB constraints
         return jsonify({"error": "Session replay or duplicate detected"}), 409
 
-    return jsonify({"presence_jwt": token, "sid": sid})
+    if not created:
+        return jsonify({"presence_jwt": session.jwt_token, "sid": session.sid, "reused": True})
+
+    return jsonify({"presence_jwt": token, "sid": sid, "reused": False})

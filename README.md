@@ -126,6 +126,7 @@ Wait 2-3 seconds for the first heartbeat to register, then open `/admin` to conf
 No manual `pi_id` editing is required.
 
 `/challenge` now sources cTRNG via Orbitport SDK (TypeScript package path), not Python RNG.
+If Orbitport cTRNG fails, Pi falls back to local secure randomness by default (`ALLOW_CTRNG_FALLBACK=True` in `rpi/config.py`).
 
 If backend sets `PI_REGISTRATION_TOKEN`, set same token in `rpi/config.py` (`PI_REGISTRATION_TOKEN`).
 
@@ -150,6 +151,7 @@ Response:
 ```json
 {
   "presence_jwt": "<jwt>",
-  "sid": "<session-id>"
+  "sid": "<session-id>",
+  "reused": false
 }
 ```

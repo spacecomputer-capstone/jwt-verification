@@ -1,9 +1,10 @@
 import os
 import subprocess
+import secrets
 from flask import Flask, jsonify, request
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
-from config import RPI_BRIDGE_HOST, RPI_BRIDGE_PORT
+from config import RPI_BRIDGE_HOST, RPI_BRIDGE_PORT, ALLOW_CTRNG_FALLBACK
 from pi_identity import get_pi_id
 
 app = Flask(__name__)
@@ -39,10 +40,14 @@ def _ctrng_hex() -> str:
     )
     if proc.returncode != 0:
         err = (proc.stderr or proc.stdout or "unknown error").strip()
+        if ALLOW_CTRNG_FALLBACK:
+            return secrets.token_hex(16)
         raise Exception(f"Orbitport cTRNG failed: {err}")
 
     value = proc.stdout.strip().lower()
     if len(value) < 32:
+        if ALLOW_CTRNG_FALLBACK:
+            return secrets.token_hex(16)
         raise Exception("Orbitport cTRNG returned insufficient bytes")
     # Use 16-byte challenge hex expected by current protocol.
     return value[:32]

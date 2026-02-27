@@ -20,6 +20,8 @@ openssl rsa -in keys/pi_private.pem -pubout -out keys/pi_public.pem
 
 export OP_CLIENT_ID="..."
 export OP_CLIENT_SECRET="..."
+sudo apt update
+sudo apt install nodejs npm -y
 npm install
 
 5. Run Pi service:
