@@ -1,4 +1,5 @@
 from datetime import datetime, timedelta, timezone
+from zoneinfo import ZoneInfo
 from flask import Blueprint, jsonify, request, Response
 from config import ADMIN_TOKEN, PI_REGISTRATION_TOKEN
 from models.pi_status import PiStatus
@@ -6,6 +7,14 @@ from services.pi_status_service import upsert_heartbeat
 from services.pi_key_service import upsert_pi_key
 
 bp = Blueprint("admin_pi", __name__)
+LA_TZ = ZoneInfo("America/Los_Angeles")
+
+
+def _to_la_iso(dt):
+    if not dt:
+        return None
+    # DB stores UTC-naive timestamps; attach UTC then convert for display.
+    return dt.replace(tzinfo=timezone.utc).astimezone(LA_TZ).isoformat()
 
 
 def _authorized() -> bool:
@@ -115,11 +124,11 @@ def admin_pis_json():
             "pi_id": row.pi_id,
             "bridge_url": row.bridge_url,
             "online": bool(row.last_seen and row.last_seen >= online_cutoff),
-            "last_seen": row.last_seen.isoformat() if row.last_seen else None,
+            "last_seen": _to_la_iso(row.last_seen),
             "last_status": row.last_status,
             "last_error": row.last_error,
-            "last_challenge_at": row.last_challenge_at.isoformat() if row.last_challenge_at else None,
-            "last_exchange_at": row.last_exchange_at.isoformat() if row.last_exchange_at else None,
+            "last_challenge_at": _to_la_iso(row.last_challenge_at),
+            "last_exchange_at": _to_la_iso(row.last_exchange_at),
         })
     return jsonify({"pis": payload})
 
@@ -144,9 +153,9 @@ def admin_pis_html():
             f"<td>{row.pi_id}</td>"
             f"<td>{status}</td>"
             f"<td>{row.bridge_url or ''}</td>"
-            f"<td>{row.last_seen or ''}</td>"
-            f"<td>{row.last_challenge_at or ''}</td>"
-            f"<td>{row.last_exchange_at or ''}</td>"
+            f"<td>{_to_la_iso(row.last_seen) or ''}</td>"
+            f"<td>{_to_la_iso(row.last_challenge_at) or ''}</td>"
+            f"<td>{_to_la_iso(row.last_exchange_at) or ''}</td>"
             f"<td>{row.last_error or ''}</td>"
             "</tr>"
             .replace("<td>ONLINE</td>", f"<td style='color:{color};font-weight:700;'>ONLINE</td>")
@@ -159,7 +168,7 @@ def admin_pis_html():
         "th,td{border:1px solid #ddd;padding:8px;text-align:left;}th{background:#f4f4f4;}</style>"
         "</head><body>"
         "<h2>Pi Connection Dashboard</h2>"
-        "<p>Online means heartbeat within last 30 seconds.</p>"
+        "<p>Online means heartbeat within last 30 seconds. Times shown in America/Los_Angeles.</p>"
         "<table><tr><th>Pi ID</th><th>Status</th><th>Bridge URL</th><th>Last Seen</th>"
         "<th>Last Challenge</th><th>Last Exchange</th><th>Last Error</th></tr>"
         f"{''.join(table_rows)}"

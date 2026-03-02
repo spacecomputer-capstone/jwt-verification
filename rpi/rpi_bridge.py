@@ -1,9 +1,11 @@
 import os
 import subprocess
 import secrets
+import json
 import threading
 import time
 from collections import deque
+from datetime import datetime, timezone
 from flask import Flask, jsonify, request
 from cryptography.hazmat.primitives import hashes, serialization
 from cryptography.hazmat.primitives.asymmetric import padding
@@ -28,6 +30,22 @@ with open(f"{BASE_DIR}/keys/pi_private.pem", "rb") as f:
         f.read(),
         password=None
     )
+
+
+def _ts() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _short(value: str, keep: int = 24) -> str:
+    if not value:
+        return ""
+    if len(value) <= keep:
+        return value
+    return f"{value[:keep]}...({len(value)} chars)"
+
+
+def _demo_log(event: str, payload: dict):
+    print(f"[DEMO][{_ts()}][PI_BRIDGE][{event}] {json.dumps(payload, separators=(',', ':'))}")
 
 
 def _generate_signed_packet() -> dict:
@@ -127,6 +145,14 @@ def challenge():
     packet = _get_cached_signed_packet()
     c_trng = packet["challenge"]
     pi_sig = packet["pi_signature"]
+
+    _demo_log("challenge_response", {
+        "user_id": user_id,
+        "requested_pi_id": requested_pi_id or None,
+        "resolved_pi_id": PI_ID,
+        "challenge": c_trng,
+        "pi_signature_preview": _short(pi_sig),
+    })
 
     return jsonify({
         "ok": True,

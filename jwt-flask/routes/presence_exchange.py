@@ -1,3 +1,5 @@
+import json
+from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify
 from cryptography.exceptions import InvalidSignature
 from services.jwt_service import issue_presence_token
@@ -9,6 +11,23 @@ from services.pi_status_service import mark_challenge, mark_exchange
 from config import REQUIRE_USER_SIGNATURE
 
 bp = Blueprint("presence_exchange", __name__)
+
+
+def _ts() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _short(value: str, keep: int = 24) -> str:
+    if not value:
+        return ""
+    if len(value) <= keep:
+        return value
+    return f"{value[:keep]}...({len(value)} chars)"
+
+
+def _demo_log(event: str, payload: dict):
+    print(f"[DEMO][{_ts()}][BACKEND][{event}] {json.dumps(payload, separators=(',', ':'))}")
+
 
 def _required(data, keys):
     missing = [k for k in keys if k not in data]
@@ -27,6 +46,13 @@ def presence_challenge():
     try:
         packet = fetch_signed_challenge(pi_id, user_id)
         mark_challenge(packet["pi_id"])
+        _demo_log("challenge_forward", {
+            "user_id": user_id,
+            "requested_pi_id": pi_id,
+            "resolved_pi_id": packet.get("pi_id"),
+            "challenge": packet.get("challenge"),
+            "pi_signature_preview": _short(packet.get("pi_signature", "")),
+        })
         return jsonify(packet)
     except Exception as e:
         return jsonify({"error": str(e)}), 502
@@ -49,6 +75,16 @@ def presence_exchange():
     user_id = data["user_id"]
     pi_id = data["pi_id"]
     challenge = data["challenge"]
+    # App currently fetches challenge directly from Pi bridge, so reflect challenge
+    # activity here for admin visibility even when /presence/challenge is bypassed.
+    mark_challenge(pi_id)
+    _demo_log("exchange_request", {
+        "user_id": user_id,
+        "pi_id": pi_id,
+        "challenge": challenge,
+        "pi_signature_preview": _short(data.get("pi_signature", "")),
+        "user_signature_preview": _short(data.get("user_signature", "")),
+    })
 
     try:
         pi_sig = bytes.fromhex(data["pi_signature"])
@@ -61,6 +97,7 @@ def presence_exchange():
 
     try:
         verify_pi_signature(pi_id, challenge_bytes, pi_sig)
+        _demo_log("pi_verify_ok", {"pi_id": pi_id, "challenge": challenge})
     except InvalidSignature:
         return jsonify({"error": "Invalid Pi signature"}), 401
     except Exception as e:
@@ -71,6 +108,7 @@ def presence_exchange():
             return jsonify({"error": "Missing user signature"}), 400
         try:
             verify_user_signature(user_id, challenge_bytes, user_sig)
+            _demo_log("user_verify_ok", {"user_id": user_id, "challenge": challenge})
         except InvalidSignature:
             return jsonify({"error": "Invalid user signature"}), 401
         except Exception as e:
@@ -86,6 +124,20 @@ def presence_exchange():
         return jsonify({"error": "Session replay or duplicate detected"}), 409
 
     if not created:
+        _demo_log("jwt_reused", {
+            "user_id": user_id,
+            "pi_id": pi_id,
+            "sid": session.sid,
+            "reused": True,
+            "jwt_preview": _short(session.jwt_token),
+        })
         return jsonify({"presence_jwt": session.jwt_token, "sid": session.sid, "reused": True})
 
+    _demo_log("jwt_issued", {
+        "user_id": user_id,
+        "pi_id": pi_id,
+        "sid": sid,
+        "reused": False,
+        "jwt_preview": _short(token),
+    })
     return jsonify({"presence_jwt": token, "sid": sid, "reused": False})
