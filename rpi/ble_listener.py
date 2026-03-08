@@ -1,3 +1,11 @@
+"""
+Legacy development/testing helper.
+
+This BLE listener was used during earlier experiments for receiving JWTs over
+Bluetooth. It is not part of the current workflow because the active flow uses
+HTTP between the app, Pi bridge, and backend instead.
+"""
+
 import asyncio
 from bleak import BleakGATTCharacteristic, BleakGATTServiceCollection
 from bleak.backends.bluezdbus.server import (

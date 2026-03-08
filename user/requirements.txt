@@ -1,1 +1,4 @@
+# Legacy development/testing dependency list for user/user_client.py.
+# Not part of the current JWT workflow because the mobile app now performs
+# the user-side signing flow directly.
 cryptography

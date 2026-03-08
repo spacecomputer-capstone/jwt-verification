@@ -1,3 +1,11 @@
+"""
+Legacy development/testing client.
+
+This script was used to manually exercise challenge signing during development.
+It is not part of the current workflow because the mobile app now handles the
+user-side signing and exchange flow directly.
+"""
+
 import json
 import os
 from cryptography.hazmat.primitives import hashes, serialization

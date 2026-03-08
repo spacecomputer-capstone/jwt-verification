@@ -1,3 +1,11 @@
+"""
+Legacy development/testing model.
+
+This table was used by the older verification route to persist proof records.
+It is not part of the current JWT workflow because the route that writes to it
+is no longer mounted in the active Flask app.
+"""
+
 from . import db
 
 class PresenceProof(db.Model):

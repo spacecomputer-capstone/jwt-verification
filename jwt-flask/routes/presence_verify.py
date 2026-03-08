@@ -1,3 +1,11 @@
+"""
+Legacy development/testing route.
+
+This file was used for an earlier presence verification step that stored proof
+records after JWT validation. It is not part of the current JWT workflow
+because this blueprint is not registered in the active Flask app.
+"""
+
 from flask import Blueprint, request, jsonify
 from services.jwt_service import verify_presence_token
 from services.attestation import verify_pi_signature
