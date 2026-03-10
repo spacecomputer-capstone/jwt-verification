@@ -94,6 +94,34 @@ If backend uses registration auth, set matching token in Pi env/config:
 
 - `PI_REGISTRATION_TOKEN=<same token as backend>`
 
+### Optional: Make Pi Reachable From Any Network
+
+By default, the Pi advertises a local LAN URL like `http://<pi-ip>:8080`, so
+the phone/app usually needs to be on the same reachable network as the Pi.
+
+If you want devices on other networks to connect, expose the Pi bridge through
+a public URL and set:
+
+```bash
+export RPI_BRIDGE_ADVERTISED_URL="https://ervin-interglobular-selah.ngrok-free.dev"
+python3 pi_client.py
+```
+
+When set, `pi_client.py` will heartbeat that public URL to the backend, and
+`/presence/pi/resolve` will return it to the app instead of the local Pi IP.
+
+Useful when:
+
+- the Pi is on a phone hotspot but the app is on campus Wi-Fi
+- the app and Pi are on different networks
+- you want remote testing without sharing the same LAN
+
+Notes:
+
+- the public URL must forward traffic to the Pi bridge on `RPI_BRIDGE_PORT`
+- the app must accept the backend-provided `bridge_url` as-is
+- public exposure should be paired with reasonable access controls if used beyond demos
+
 ## cTRNG Behavior and Latency Stability
 
 `/challenge` uses Orbitport cTRNG via Node helper (`rpi/scripts/get_ctrng.mjs`).
@@ -159,6 +187,7 @@ Legacy path remains as fallback if enabled in app.
   - set correct `USER1_ED25519_PUBLIC_KEY_HEX` in backend env
 - `No Pi bridge reachable` in app:
   - ensure phone can reach Pi network address
+  - if phone and Pi are on different networks, set `RPI_BRIDGE_ADVERTISED_URL` to a public bridge URL
   - check `/presence/pi/resolve` and Pi `/health`
 - cTRNG instability:
   - verify `OP_CLIENT_ID` / `OP_CLIENT_SECRET`

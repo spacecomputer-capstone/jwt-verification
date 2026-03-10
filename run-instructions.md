@@ -24,6 +24,10 @@ sudo apt update
 sudo apt install nodejs npm -y
 npm install
 
+Optional if the app will not be on the same network as the Pi:
+
+export RPI_BRIDGE_ADVERTISED_URL="https://ervin-interglobular-selah.ngrok-free.dev"
+
 5. Run Pi service:
 
 python3 pi_client.py
@@ -66,6 +70,7 @@ Keep it running.
     - regenerate pi_public.pem from current pi_private.pem, restart pi_client.py
 - App falls back immediately:
     - Pi likely unreachable or backend verification failed; check /admin and Render logs.
+    - if the app is on a different network than the Pi, ensure RPI_BRIDGE_ADVERTISED_URL points to a public URL that forwards to the Pi bridge
 - Orbitport cTRNG failed:
       - check OP_CLIENT_ID / OP_CLIENT_SECRET are set in the same shell
       - run node scripts/get_ctrng.mjs from rpi/ to verify output hex
